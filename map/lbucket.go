@@ -1,0 +1,151 @@
+package _map
+
+import (
+	"sync"
+	"sync/atomic"
+	"unsafe"
+)
+
+type lbucket struct {
+	count int32
+	head  *lnode
+	lock  sync.RWMutex
+}
+
+func NewBucket() *lbucket {
+	return &lbucket{
+		count: 0,
+		head:  nil,
+	}
+}
+
+func (b *lbucket) Get(key interface{}, hashkey uint64) (value interface{}, exist bool) {
+	b.lock.RLock()
+	defer b.lock.RUnlock()
+
+	_, node, found := b.find(key, hashkey)
+	if !found {
+		return nil, false
+	}
+
+	return *(*interface{})(node.GetValueAtomically()), found
+}
+
+func (b *lbucket) Set(key interface{}, hashkey uint64, value interface{}) (success bool) {
+	b.lock.RLock()
+	defer b.lock.RUnlock()
+
+	_, node, found := b.find(key, hashkey)
+	if found {
+		return b.update(key, hashkey, value, node)
+	}
+
+	return b.insert(key, hashkey, value, node)
+}
+
+func (b *lbucket) Del(key interface{}, hashkey uint64) (success bool) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	if key == nil {
+		return false
+	}
+
+	return b.delete(key, hashkey)
+}
+
+func (b *lbucket) find(key interface{}, hashkey uint64) (parent *lnode, current *lnode, exist bool) {
+	if nil == key {
+		return nil, nil, false
+	}
+
+	parent = nil
+	if nil != b.head {
+		for current := b.head; current != nil; current = current.GetNext() {
+			if hashkey == current.GetHash() {
+				return parent, current, true
+			}
+			parent = current
+		}
+	}
+	return nil, nil, false
+}
+
+func (b *lbucket) insert(key interface{}, hashkey uint64, value interface{}, current *lnode) (success bool) {
+	newNode := lnode{
+		hashVal:    hashkey,
+		keyPointer: unsafe.Pointer(&key),
+		valPointer: unsafe.Pointer(&value),
+	}
+
+	if current != nil {
+		currentNext := current.GetNext()
+		b1 := newNode.UpdateNextPointerWithCAS(unsafe.Pointer(newNode.GetNext()), currentNext)
+		if !b1 {
+			return false
+		}
+
+		addResult := current.UpdateNextPointerWithCAS(unsafe.Pointer(currentNext), &newNode)
+		if addResult {
+			atomic.AddInt32(&b.count, 1)
+		} else {
+			newNode.UpdateNextPointerWithCAS(unsafe.Pointer(currentNext), nil)
+		}
+		return addResult
+	} else {
+		head := b.head
+		if b.head != nil {
+			atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&newNode.nextPointer)), nil, unsafe.Pointer(head))
+		}
+		addResult := atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&b.head)), unsafe.Pointer(head), unsafe.Pointer(&newNode))
+		if addResult {
+			atomic.AddInt32(&b.count, 1)
+		} else {
+			newNode.UpdateNextPointerWithCAS(unsafe.Pointer(head), nil)
+		}
+		return addResult
+	}
+	return false
+}
+
+func (b *lbucket) update(key interface{}, hashkey uint64, value interface{}, node *lnode) (success bool) {
+	if key == nil {
+		return false
+	}
+
+	if node.GetHash() == hashkey {
+		return node.UpdateValueWithCAS(node.GetValueAtomically(), value)
+	}
+	return false
+}
+
+func (b *lbucket) delete(key interface{}, hashkey uint64) (success bool) {
+	parent, current, exist := b.find(key, hashkey)
+
+	if !exist {
+		return true
+	}
+
+	var newNext *lnode = nil
+	if current != nil {
+		newNext = current.GetNext()
+	}
+
+	delResult := false
+	if parent == nil {
+		delResult = atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&b.head)), unsafe.Pointer(current), unsafe.Pointer(newNext))
+	} else {
+		delResult = parent.UpdateNextPointerWithCAS(unsafe.Pointer(current), newNext)
+	}
+
+	if delResult {
+		current.UpdateNextPointerWithCAS(unsafe.Pointer(newNext), nil)
+		current = nil
+		atomic.AddInt32(&b.count, -1)
+	}
+	return delResult
+}
+
+func (b *lbucket) Size() (count uint32) {
+	return count
+}
