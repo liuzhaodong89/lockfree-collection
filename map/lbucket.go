@@ -1,21 +1,22 @@
 package _map
 
 import (
+	"sort"
 	"sync"
 	"sync/atomic"
 	"unsafe"
 )
 
 type lbucket struct {
-	count int32
-	head  *lnode
-	lock  sync.RWMutex
+	lock sync.RWMutex
+	//count int32
+	head *lnode
 }
 
 func NewBucket() *lbucket {
 	return &lbucket{
-		count: 0,
-		head:  nil,
+		//count: 0,
+		head: nil,
 	}
 }
 
@@ -31,16 +32,16 @@ func (b *lbucket) Get(key interface{}, hashkey uint64) (value interface{}, exist
 	return *(*interface{})(node.GetValueAtomically()), found
 }
 
-func (b *lbucket) Set(key interface{}, hashkey uint64, value interface{}) (success bool) {
+func (b *lbucket) Set(key interface{}, hashkey uint64, value interface{}) (insert int32, success bool) {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
 	_, node, found := b.find(key, hashkey)
 	if found {
-		return b.update(key, hashkey, value, node)
+		return 0, b.update(key, hashkey, value, node)
 	}
 
-	return b.insert(key, hashkey, value, node)
+	return 1, b.insert(key, hashkey, value, node)
 }
 
 func (b *lbucket) Del(key interface{}, hashkey uint64) (success bool) {
@@ -87,7 +88,7 @@ func (b *lbucket) insert(key interface{}, hashkey uint64, value interface{}, cur
 
 		addResult := current.UpdateNextPointerWithCAS(unsafe.Pointer(currentNext), &newNode)
 		if addResult {
-			atomic.AddInt32(&b.count, 1)
+			//atomic.AddInt32(&b.count, 1)
 		} else {
 			newNode.UpdateNextPointerWithCAS(unsafe.Pointer(currentNext), nil)
 		}
@@ -99,7 +100,7 @@ func (b *lbucket) insert(key interface{}, hashkey uint64, value interface{}, cur
 		}
 		addResult := atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&b.head)), unsafe.Pointer(head), unsafe.Pointer(&newNode))
 		if addResult {
-			atomic.AddInt32(&b.count, 1)
+			//atomic.AddInt32(&b.count, 1)
 		} else {
 			newNode.UpdateNextPointerWithCAS(unsafe.Pointer(head), nil)
 		}
@@ -141,11 +142,38 @@ func (b *lbucket) delete(key interface{}, hashkey uint64) (success bool) {
 	if delResult {
 		current.UpdateNextPointerWithCAS(unsafe.Pointer(newNext), nil)
 		current = nil
-		atomic.AddInt32(&b.count, -1)
+		//atomic.AddInt32(&b.count, -1)
 	}
 	return delResult
 }
 
 func (b *lbucket) Size() (count uint32) {
 	return count
+}
+
+func (b *lbucket) Split(hashes []uint64) (headNodes []*lnode) {
+	if b.head == nil {
+		return nil
+	}
+	if hashes != nil {
+		sort.Slice(hashes, func(i, j int) bool {
+			return i < j
+		})
+
+		hashIndex := 0
+		node := b.head
+		var parent *lnode = nil
+		for ; node.nextPointer != nil; node = node.GetNext() {
+			if node.hashVal >= hashes[hashIndex] && (parent == nil || parent != nil && parent.hashVal < hashes[hashIndex]) {
+				headNodes = append(headNodes, node)
+				hashIndex++
+
+				if hashIndex >= len(hashes) {
+					break
+				}
+			}
+			parent = node
+		}
+	}
+	return headNodes
 }

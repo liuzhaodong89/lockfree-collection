@@ -3,11 +3,13 @@ package _map
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"github.com/shopspring/decimal"
 	"liuzhaodong.com/lockfree-collection/common"
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type lmap struct {
@@ -22,12 +24,14 @@ type lmap struct {
 }
 
 const MAX_CAPACITY int32 = math.MaxInt32
-const DEFAULT_CAPACITY int32 = 16
+const DEFAULT_CAPACITY int32 = 256
 const LOAD_FACTOR float32 = 0.75
+const MULTIPLE_FACTOR = 4
+const DEFAULT_BUCKET_CAPACITY = 10
 
 func New() (m *lmap) {
 	lm := lmap{
-		resizeThreshold: int32(decimal.NewFromInt32(DEFAULT_CAPACITY).Mul(decimal.NewFromFloat32(LOAD_FACTOR)).IntPart()),
+		resizeThreshold: int32(decimal.NewFromInt32(DEFAULT_CAPACITY).Mul(decimal.NewFromInt(DEFAULT_BUCKET_CAPACITY)).Mul(decimal.NewFromFloat32(LOAD_FACTOR)).IntPart()),
 		capability:      DEFAULT_CAPACITY,
 		count:           0,
 		buckets:         make([]*lbucket, DEFAULT_CAPACITY),
@@ -58,38 +62,38 @@ func (m *lmap) Set(key interface{}, val any) bool {
 	if m.count > m.resizeThreshold {
 		m.resize()
 	}
-	return m.set2buckest(key, val, m.buckets)
-}
 
-func (m *lmap) set2buckest(key interface{}, val any, buckets []*lbucket) bool {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 
+	return m.set2bucket(key, val, m.buckets)
+}
+
+func (m *lmap) set2bucket(key interface{}, val any, buckets []*lbucket) bool {
 	if key == nil {
 		return false
 	}
 
 	hashkey := common.GetHash(key, m.seed1, m.seed2)
-	bucket := m.getLBucket(hashkey, buckets)
-	if nil == bucket {
-		bucket = NewBucket()
-		buckets = append(buckets, bucket)
-	}
-	atomic.AddInt32(&m.count, 1)
 
-	return bucket.Set(key, hashkey, val)
+	bucket := m.getLBucketWithoutLock(hashkey, buckets)
+	insert, succ := bucket.Set(key, hashkey, val)
+	if insert == 1 && succ {
+		atomic.AddInt32(&m.count, 1)
+	}
+	return succ
 }
 
 func (m *lmap) Del(key interface{}) (success bool) {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
-
 	if key == nil {
 		return false
 	}
 	hashkey := common.GetHash(key, m.seed1, m.seed2)
-	bucket := m.getLBucket(hashkey, m.buckets)
 
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	bucket := m.getLBucketWithoutLock(hashkey, m.buckets)
 	suc := bucket.delete(key, hashkey)
 	if suc {
 		atomic.AddInt32(&m.count, -1)
@@ -102,56 +106,93 @@ func (m *lmap) Size() (size int32) {
 }
 
 func (m *lmap) resize() {
+	startTime := time.Now()
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
+	if m.count <= m.resizeThreshold {
+		return
+	}
+
 	oldCap := m.capability
-	oldBuckets := m.buckets
 
 	if oldCap > 0 {
 		if oldCap >= MAX_CAPACITY {
 			m.resizeThreshold = MAX_CAPACITY
 		} else {
 			newCap := oldCap
-			if oldCap >= MAX_CAPACITY/2 {
+			if oldCap >= MAX_CAPACITY/MULTIPLE_FACTOR {
 				newCap = MAX_CAPACITY
 			} else {
-				newCap = oldCap * 2
+				newCap = oldCap * MULTIPLE_FACTOR
 			}
 
-			newThres := int32(decimal.NewFromInt32(newCap).Mul(decimal.NewFromFloat32(LOAD_FACTOR)).IntPart())
+			newThres := int32(decimal.NewFromInt32(newCap).Mul(decimal.NewFromInt(DEFAULT_BUCKET_CAPACITY)).Mul(decimal.NewFromFloat32(LOAD_FACTOR)).IntPart())
 			m.resizeThreshold = newThres
+			m.capability = newCap
+			stageTime1 := time.Now()
+			fmt.Printf("stage time for calculate new params:%s \n", stageTime1.Sub(startTime))
 
-			newBuckets := m.createBuckets(newCap)
+			//newBuckets := m.createBuckets(newCap)
+
+			var fi int32 = 0
+			newBuckets := make([]*lbucket, 0)
+			for ; fi < MULTIPLE_FACTOR; fi++ {
+				newBuckets = append(newBuckets, m.buckets...)
+			}
+
+			stageTime2 := time.Now()
+			fmt.Printf("stage time for create new buckets slice:%s \n", stageTime2.Sub(stageTime1))
+			m.bucketsCountBit = uint64(math.Log2(float64(len(newBuckets))))
+			endTime1 := time.Now()
+			fmt.Printf("time for expand buckets: %s \n", endTime1.Sub(startTime))
 
 			//rehash
-			if oldBuckets != nil {
-				for i := 0; i < len(oldBuckets); i++ {
-					b := oldBuckets[i]
-					if b != nil {
-						node := b.head
-						for {
-							if node == nil {
-								break
-							}
-							m.set2buckest(node.GetKeyAtomically(), *(*interface{})(node.GetValueAtomically()), newBuckets)
-							node = node.nextPointer
+			if newBuckets != nil {
+				for i := 0; i < len(newBuckets); i++ {
+					if i%MULTIPLE_FACTOR != 0 {
+						//newBuckets[i].count = 0
+						newBuckets[i].head = nil
+					}
+				}
+				endTime2 := time.Now()
+				fmt.Printf("time for copy buckets: %s \n", endTime2.Sub(endTime1))
+
+				hashesSlice := make([]uint64, MULTIPLE_FACTOR-1)
+				for j := 0; j < len(newBuckets); j = (j + 1) * MULTIPLE_FACTOR {
+					hashesSlice = hashesSlice[0:0]
+					for x := 1; x < MULTIPLE_FACTOR; x++ {
+						hashesSlice = append(hashesSlice, uint64(j+x)<<(64-m.bucketsCountBit))
+					}
+					nodes := newBuckets[j].Split(hashesSlice)
+					if nodes != nil {
+						for y := 0; y < len(nodes); y++ {
+							newBuckets[j+y].head = nodes[y]
 						}
 					}
 				}
+				endTime3 := time.Now()
+				fmt.Printf("time for move nodes: %s \n", endTime3.Sub(endTime2))
 			}
 			m.buckets = newBuckets
 		}
 	}
+	endTime := time.Now()
+	fmt.Printf("time for resize:%s ============  and count is %v ,and threshold is %v \n", endTime.Sub(startTime), m.count, m.resizeThreshold)
 }
 
 func (m *lmap) createBuckets(bucketsSize int32) (buckets []*lbucket) {
 	if bucketsSize > 0 {
 		var i int32 = 0
+		startTime := time.Now()
 		buckets = make([]*lbucket, bucketsSize)
+		endTime1 := time.Now()
+		fmt.Printf("create buckets stage 1:%s \n", endTime1.Sub(startTime))
 		for ; i < bucketsSize; i++ {
 			buckets[i] = NewBucket()
 		}
+		endTime2 := time.Now()
+		fmt.Printf("create buckets stage 2:%s \n", endTime2.Sub(endTime1))
 		return buckets
 	} else {
 		return nil
@@ -161,5 +202,9 @@ func (m *lmap) createBuckets(bucketsSize int32) (buckets []*lbucket) {
 func (m *lmap) getLBucket(hashKey uint64, buckets []*lbucket) (b *lbucket) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
+	return m.getLBucketWithoutLock(hashKey, buckets)
+}
+
+func (m *lmap) getLBucketWithoutLock(hashKey uint64, buckets []*lbucket) (b *lbucket) {
 	return buckets[hashKey>>(64-m.bucketsCountBit)]
 }
