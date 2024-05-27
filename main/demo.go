@@ -27,6 +27,9 @@ func main() {
 	//fmt.Println(lm.Get("1"))
 	//fmt.Printf("_________________")
 
+	//var int string = "test"
+	//fmt.Printf(int)
+
 	fmt.Println("*************************")
 	LOOPCOUNT := 100000
 	testMap := _map.New()
@@ -37,6 +40,8 @@ func main() {
 	for x := 0; x < LOOPCOUNT; x++ {
 		go func() {
 			testMap.Set(fmt.Sprintf("%v", x), "testval")
+			//testMap.Set(x, "testVal")
+			//testMap.Set(float64(x), "testval")
 			//testMap.Set(x, "testVal")
 			wa2.Done()
 		}()
