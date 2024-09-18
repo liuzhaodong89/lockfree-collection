@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"github.com/dchest/siphash"
+	cityhash2 "github.com/zentures/cityhash"
 	"math"
 	"reflect"
 	"unsafe"
@@ -67,4 +68,8 @@ func memhash(k0, k1 uint64, addr unsafe.Pointer, size int) uint64 {
 		Cap:  size,
 	}
 	return siphash.Hash(k0, k1, *(*[]byte)(unsafe.Pointer(&sh)))
+}
+
+func GetCityHashUseString(k0, k1 uint64, data string, length uint32) uint64 {
+	return cityhash2.CityHash64WithSeeds([]byte(data), length, k0, k1)
 }

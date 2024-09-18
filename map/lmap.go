@@ -52,7 +52,8 @@ func (m *lmap) Get(key interface{}) (val any, exist bool) {
 		return nil, false
 	}
 
-	hashkey := common.GetHash(key, m.seed1, m.seed2)
+	//hashkey := common.GetHash(key, m.seed1, m.seed2)
+	hashkey := common.GetCityHashUseString(m.seed1, m.seed2, key.(string), 1)
 	bucket := m.getLBucket(hashkey, m.buckets)
 
 	return bucket.Get(key, hashkey)
@@ -74,7 +75,8 @@ func (m *lmap) set2bucket(key interface{}, val any, buckets []*lbucket) bool {
 		return false
 	}
 
-	hashkey := common.GetHash(key, m.seed1, m.seed2)
+	//hashkey := common.GetHash(key, m.seed1, m.seed2)
+	hashkey := common.GetCityHashUseString(m.seed1, m.seed2, key.(string), 1)
 
 	bucket := m.getLBucketWithoutLock(hashkey, buckets)
 	insert, succ := bucket.Set(key, hashkey, val)
@@ -88,7 +90,8 @@ func (m *lmap) Del(key interface{}) (success bool) {
 	if key == nil {
 		return false
 	}
-	hashkey := common.GetHash(key, m.seed1, m.seed2)
+	//hashkey := common.GetHash(key, m.seed1, m.seed2)
+	hashkey := common.GetCityHashUseString(m.seed1, m.seed2, key.(string), 1)
 
 	m.lock.RLock()
 	defer m.lock.RUnlock()

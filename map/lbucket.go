@@ -64,7 +64,9 @@ func (b *lbucket) find(key interface{}, hashkey uint64) (parent *lnode, current 
 	if nil != b.head {
 		for current := b.head; current != nil; current = current.GetNext() {
 			if hashkey == current.GetHash() {
-				return parent, current, true
+				if *(*interface{})(current.keyPointer) == key {
+					return parent, current, true
+				}
 			}
 			parent = current
 		}
