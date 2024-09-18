@@ -1,4 +1,4 @@
-module liuzhaodong.com/lockfree-collection
+module github.com/liuzhaodong89/lockfree-collection
 
 go 1.19
 
