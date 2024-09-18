@@ -3,13 +3,11 @@ package _map
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"fmt"
 	"github.com/liuzhaodong89/lockfree-collection/common"
 	"github.com/shopspring/decimal"
 	"math"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 type lmap struct {
@@ -109,7 +107,7 @@ func (m *lmap) Size() (size int32) {
 }
 
 func (m *lmap) resize() {
-	startTime := time.Now()
+	//startTime := time.Now()
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -180,22 +178,22 @@ func (m *lmap) resize() {
 			m.buckets = newBuckets
 		}
 	}
-	endTime := time.Now()
-	fmt.Printf("time for resize:%s ============  and count is %v ,and threshold is %v \n", endTime.Sub(startTime), m.count, m.resizeThreshold)
+	//endTime := time.Now()
+	//fmt.Printf("time for resize:%s ============  and count is %v ,and threshold is %v \n", endTime.Sub(startTime), m.count, m.resizeThreshold)
 }
 
 func (m *lmap) createBuckets(bucketsSize int32) (buckets []*lbucket) {
 	if bucketsSize > 0 {
 		var i int32 = 0
-		startTime := time.Now()
+		//startTime := time.Now()
 		buckets = make([]*lbucket, bucketsSize)
-		endTime1 := time.Now()
-		fmt.Printf("create buckets stage 1:%s \n", endTime1.Sub(startTime))
+		//endTime1 := time.Now()
+		//fmt.Printf("create buckets stage 1:%s \n", endTime1.Sub(startTime))
 		for ; i < bucketsSize; i++ {
 			buckets[i] = NewBucket()
 		}
-		endTime2 := time.Now()
-		fmt.Printf("create buckets stage 2:%s \n", endTime2.Sub(endTime1))
+		//endTime2 := time.Now()
+		//fmt.Printf("create buckets stage 2:%s \n", endTime2.Sub(endTime1))
 		return buckets
 	} else {
 		return nil
