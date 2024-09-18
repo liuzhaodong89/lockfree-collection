@@ -67,7 +67,8 @@ func memhash(k0, k1 uint64, addr unsafe.Pointer, size int) uint64 {
 		Len:  size,
 		Cap:  size,
 	}
-	return siphash.Hash(k0, k1, *(*[]byte)(unsafe.Pointer(&sh)))
+	//return siphash.Hash(k0, k1, *(*[]byte)(unsafe.Pointer(&sh)))
+	return cityhash2.CityHash64WithSeeds(*(*[]byte)(unsafe.Pointer(&sh)), uint32(size), k0, k1)
 }
 
 func GetCityHashUseString(k0, k1 uint64, data string, length uint32) uint64 {
