@@ -133,8 +133,8 @@ func (m *lmap) resize() {
 			newThres := int32(decimal.NewFromInt32(newCap).Mul(decimal.NewFromInt(DEFAULT_BUCKET_CAPACITY)).Mul(decimal.NewFromFloat32(LOAD_FACTOR)).IntPart())
 			m.resizeThreshold = newThres
 			m.capability = newCap
-			stageTime1 := time.Now()
-			fmt.Printf("stage time for calculate new params:%s \n", stageTime1.Sub(startTime))
+			//stageTime1 := time.Now()
+			//fmt.Printf("stage time for calculate new params:%s \n", stageTime1.Sub(startTime))
 
 			//newBuckets := m.createBuckets(newCap)
 
@@ -144,11 +144,11 @@ func (m *lmap) resize() {
 				newBuckets = append(newBuckets, m.buckets...)
 			}
 
-			stageTime2 := time.Now()
-			fmt.Printf("stage time for create new buckets slice:%s \n", stageTime2.Sub(stageTime1))
+			//stageTime2 := time.Now()
+			//fmt.Printf("stage time for create new buckets slice:%s \n", stageTime2.Sub(stageTime1))
 			m.bucketsCountBit = uint64(math.Log2(float64(len(newBuckets))))
-			endTime1 := time.Now()
-			fmt.Printf("time for expand buckets: %s \n", endTime1.Sub(startTime))
+			//endTime1 := time.Now()
+			//fmt.Printf("time for expand buckets: %s \n", endTime1.Sub(startTime))
 
 			//rehash
 			if newBuckets != nil {
@@ -158,8 +158,8 @@ func (m *lmap) resize() {
 						newBuckets[i].head = nil
 					}
 				}
-				endTime2 := time.Now()
-				fmt.Printf("time for copy buckets: %s \n", endTime2.Sub(endTime1))
+				//endTime2 := time.Now()
+				//fmt.Printf("time for copy buckets: %s \n", endTime2.Sub(endTime1))
 
 				hashesSlice := make([]uint64, MULTIPLE_FACTOR-1)
 				for j := 0; j < len(newBuckets); j = (j + 1) * MULTIPLE_FACTOR {
@@ -174,8 +174,8 @@ func (m *lmap) resize() {
 						}
 					}
 				}
-				endTime3 := time.Now()
-				fmt.Printf("time for move nodes: %s \n", endTime3.Sub(endTime2))
+				//endTime3 := time.Now()
+				//fmt.Printf("time for move nodes: %s \n", endTime3.Sub(endTime2))
 			}
 			m.buckets = newBuckets
 		}
