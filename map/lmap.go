@@ -134,10 +134,10 @@ func (m *lmap) resize() {
 			//stageTime1 := time.Now()
 			//fmt.Printf("stage time for calculate new params:%s \n", stageTime1.Sub(startTime))
 
-			//newBuckets := m.createBuckets(newCap)
+			newBuckets := m.createBuckets(newCap)
 
 			var fi int32 = 0
-			newBuckets := make([]*lbucket, 0)
+			//newBuckets := make([]*lbucket, 0)
 			for ; fi < MULTIPLE_FACTOR; fi++ {
 				newBuckets = append(newBuckets, m.buckets...)
 			}
