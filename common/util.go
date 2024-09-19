@@ -2,7 +2,6 @@ package common
 
 import (
 	"fmt"
-	"github.com/dchest/siphash"
 	cityhash2 "github.com/zentures/cityhash"
 	"math"
 	"reflect"
@@ -47,7 +46,8 @@ func GetHash(key interface{}, seed1 uint64, seed2 uint64) (hash uint64) {
 	case bool:
 		return memhash(seed1, seed2+1, unsafe.Pointer(&v), 1)
 	case []byte:
-		return siphash.Hash(seed1, seed2, v)
+		//return siphash.Hash(seed1, seed2, v)
+		return cityhash2.CityHash64WithSeeds(v, 1, seed1, seed2)
 	case string:
 		hdr := (*reflect.StringHeader)(unsafe.Pointer(&v))
 		sh := reflect.SliceHeader{
@@ -55,7 +55,8 @@ func GetHash(key interface{}, seed1 uint64, seed2 uint64) (hash uint64) {
 			Len:  hdr.Len,
 			Cap:  hdr.Len,
 		}
-		return siphash.Hash(seed1-1, seed2, *(*[]byte)(unsafe.Pointer(&sh)))
+		//return siphash.Hash(seed1-1, seed2, *(*[]byte)(unsafe.Pointer(&sh)))
+		return cityhash2.CityHash64WithSeeds(*(*[]byte)(unsafe.Pointer(&sh)), uint32(hdr.Len), seed1-1, seed2)
 	default:
 		panic(fmt.Errorf("unsupported key type %T", v))
 	}
