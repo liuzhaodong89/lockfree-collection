@@ -2,6 +2,8 @@ package common
 
 import (
 	"fmt"
+	"github.com/dchest/siphash"
+	"github.com/dgryski/go-sip13"
 	cityhash2 "github.com/zentures/cityhash"
 	"math"
 	"reflect"
@@ -49,14 +51,14 @@ func GetHash(key interface{}, seed1 uint64, seed2 uint64) (hash uint64) {
 		//return siphash.Hash(seed1, seed2, v)
 		return cityhash2.CityHash64WithSeeds(v, 1, seed1, seed2)
 	case string:
-		hdr := (*reflect.StringHeader)(unsafe.Pointer(&v))
-		sh := reflect.SliceHeader{
-			Data: hdr.Data,
-			Len:  hdr.Len,
-			Cap:  hdr.Len,
-		}
+		//hdr := (*reflect.StringHeader)(unsafe.Pointer(&v))
+		//sh := reflect.SliceHeader{
+		//	Data: hdr.Data,
+		//	Len:  hdr.Len,
+		//	Cap:  hdr.Len,
+		//}
 		//return siphash.Hash(seed1-1, seed2, *(*[]byte)(unsafe.Pointer(&sh)))
-		return cityhash2.CityHash64WithSeeds(*(*[]byte)(unsafe.Pointer(&sh)), uint32(hdr.Len), seed1-1, seed2)
+		return sip13.Sum64Str(seed1, seed2, key.(string))
 	default:
 		panic(fmt.Errorf("unsupported key type %T", v))
 	}
@@ -68,8 +70,8 @@ func memhash(k0, k1 uint64, addr unsafe.Pointer, size int) uint64 {
 		Len:  size,
 		Cap:  size,
 	}
-	//return siphash.Hash(k0, k1, *(*[]byte)(unsafe.Pointer(&sh)))
-	return cityhash2.CityHash64WithSeeds(*(*[]byte)(unsafe.Pointer(&sh)), uint32(size), k0, k1)
+	return siphash.Hash(k0, k1, *(*[]byte)(unsafe.Pointer(&sh)))
+	//return cityhash2.CityHash64WithSeeds(*(*[]byte)(unsafe.Pointer(&sh)), uint32(size), k0, k1)
 }
 
 func GetCityHashUseString(k0, k1 uint64, data string, length uint32) uint64 {
