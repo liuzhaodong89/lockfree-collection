@@ -3,7 +3,7 @@ package common
 import (
 	"fmt"
 	"github.com/dchest/siphash"
-	"github.com/dgryski/go-sip13"
+	"github.com/dgryski/go-farm"
 	cityhash2 "github.com/zentures/cityhash"
 	"math"
 	"reflect"
@@ -19,16 +19,22 @@ func GetHash(key interface{}, seed1 uint64, seed2 uint64) (hash uint64) {
 	switch v := key.(type) {
 	case uint8:
 		return memhash(seed1, seed2+1, unsafe.Pointer(&v), 1)
+		//return uint64(v)
 	case int8:
 		return memhash(seed1, seed2-1, unsafe.Pointer(&v), 1)
+		//return uint64(v)
 	case uint16:
 		return memhash(seed1, seed2+1, unsafe.Pointer(&v), 2)
+		//return uint64(v)
 	case int16:
 		return memhash(seed1, seed2-1, unsafe.Pointer(&v), 2)
+		//return uint64(v)
 	case uint32:
 		return memhash(seed1, seed2+1, unsafe.Pointer(&v), 4)
+		//return uint64(v)
 	case int32:
 		return memhash(seed1, seed2-1, unsafe.Pointer(&v), 4)
+		//return uint64(v)
 	case uint64:
 		return v
 	case int64:
@@ -58,7 +64,8 @@ func GetHash(key interface{}, seed1 uint64, seed2 uint64) (hash uint64) {
 		//	Cap:  hdr.Len,
 		//}
 		//return siphash.Hash(seed1-1, seed2, *(*[]byte)(unsafe.Pointer(&sh)))
-		return sip13.Sum64Str(seed1, seed2, key.(string))
+		//return sip13.Sum64Str(seed1, seed2, key.(string))
+		return farm.Hash64([]byte(key.(string)))
 	default:
 		panic(fmt.Errorf("unsupported key type %T", v))
 	}
