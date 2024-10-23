@@ -3,9 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
-	"github.com/cespare/xxhash"
 	"github.com/dchest/siphash"
 	"github.com/dgryski/go-farm"
 	"github.com/dgryski/go-sip13"
@@ -41,7 +39,7 @@ func main() {
 	//fmt.Printf(int)
 
 	//fmt.Println("*************************")
-	LOOPCOUNT := 200000
+	LOOPCOUNT := 100000
 	testMap := _map.New()
 	wa2 := sync.WaitGroup{}
 	wa2.Add(LOOPCOUNT)
@@ -59,6 +57,8 @@ func main() {
 
 			//}
 			testMap.Set(fmt.Sprintf("%v", tmp), "testval")
+			//testMap.Set(tmp, "testval")
+
 			//testMap.Set(tmp, "testVal")
 			//testMap.Set(float64(tmp), "testval")
 			//testMap.Set(tmp, "testVal111")
@@ -81,73 +81,73 @@ func main() {
 	binary.Read(rand.Reader, binary.BigEndian, &seed1)
 	binary.Read(rand.Reader, binary.BigEndian, &seed2)
 
-	startTime := time.Now()
-	for x := 0; x < LOOPCOUNT; x++ {
-		testDchestSipHash(seed1, seed2, fmt.Sprintf("%v", x))
-	}
-	stageTime := time.Now()
-	fmt.Printf("First Sip: %s \n", stageTime.Sub(startTime))
-	for y := 0; y < LOOPCOUNT; y++ {
-		testDgryskiSipHash(seed1, seed2, fmt.Sprintf("%v", y))
-	}
-	endTime := time.Now()
-	fmt.Printf("Second Sip: %s \n", endTime.Sub(stageTime))
-
-	key, _ := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000") // use your own key here
-	p, _ := hex.DecodeString("12345")
-	hwStartTime := time.Now()
-	for hwIndex := 0; hwIndex < LOOPCOUNT; hwIndex++ {
-		testHighwayHash(key, p)
-	}
-	hwTime := time.Now()
-	fmt.Printf("Highway: %s \n", hwTime.Sub(hwStartTime))
-
-	//s, _ := hex.DecodeString("123456123456123456123456123456123456123456123456")
-	for ctIndex := 0; ctIndex < LOOPCOUNT; ctIndex++ {
-		p := fmt.Sprintf("%s", ctIndex)
-		testCityHash1([]byte(p))
-	}
-	ctTime := time.Now()
-	fmt.Printf("City: %s \n", ctTime.Sub(hwTime))
-
-	for ct2Index := 0; ct2Index < LOOPCOUNT; ct2Index++ {
-		//s, _ = hex.DecodeString("123456123456123456123456123456123456123456123456")
-		p := fmt.Sprintf("%s", ct2Index)
-		testCityHash2([]byte(p))
-	}
-	ct2Time := time.Now()
-	fmt.Printf("City2: %s \n", ct2Time.Sub(ctTime))
-
-	for ct3Index := 0; ct3Index < LOOPCOUNT; ct3Index++ {
-		//s, _ = hex.DecodeString("123456123456123456123456123456123456123456123456")
-		p := fmt.Sprintf("%s", ct3Index)
-		hdr := (*reflect.StringHeader)(unsafe.Pointer(&p))
-		sh := reflect.SliceHeader{
-			Data: hdr.Data,
-			Len:  hdr.Len,
-			Cap:  hdr.Len,
-		}
-		testCityHash3(*(*[]byte)(unsafe.Pointer(&sh)), 0, seed1, seed2)
-	}
-	ct3Time := time.Now()
-	fmt.Printf("City3: %s \n", ct3Time.Sub(ct2Time))
-
-	d := xxhash.New()
-	for xxIndex := 0; xxIndex < LOOPCOUNT; xxIndex++ {
-		//s, _ = hex.DecodeString("123456123456123456123456123456123456123456123456")
-		p := fmt.Sprintf("%s", xxIndex)
-		testXXHash([]byte(p), d)
-	}
-	xxTime := time.Now()
-	fmt.Printf("xxHash: %s \n", xxTime.Sub(ct3Time))
-
-	for farmIndex := 0; farmIndex < LOOPCOUNT; farmIndex++ {
-		//s, _ = hex.DecodeString("123456123456123456123456123456123456123456123456")
-		p := fmt.Sprintf("%s", farmIndex)
-		testFarmHash([]byte(p))
-	}
-	farmTime := time.Now()
-	fmt.Printf("farmHash: %s \n", farmTime.Sub(xxTime))
+	//startTime := time.Now()
+	//for x := 0; x < LOOPCOUNT; x++ {
+	//	testDchestSipHash(seed1, seed2, fmt.Sprintf("%v", x))
+	//}
+	//stageTime := time.Now()
+	//fmt.Printf("First Sip: %s \n", stageTime.Sub(startTime))
+	//for y := 0; y < LOOPCOUNT; y++ {
+	//	testDgryskiSipHash(seed1, seed2, fmt.Sprintf("%v", y))
+	//}
+	//endTime := time.Now()
+	//fmt.Printf("Second Sip: %s \n", endTime.Sub(stageTime))
+	//
+	//key, _ := hex.DecodeString("000102030405060708090A0B0C0D0E0FF0E0D0C0B0A090807060504030201000") // use your own key here
+	//p, _ := hex.DecodeString("12345")
+	//hwStartTime := time.Now()
+	//for hwIndex := 0; hwIndex < LOOPCOUNT; hwIndex++ {
+	//	testHighwayHash(key, p)
+	//}
+	//hwTime := time.Now()
+	//fmt.Printf("Highway: %s \n", hwTime.Sub(hwStartTime))
+	//
+	////s, _ := hex.DecodeString("123456123456123456123456123456123456123456123456")
+	//for ctIndex := 0; ctIndex < LOOPCOUNT; ctIndex++ {
+	//	p := fmt.Sprintf("%s", ctIndex)
+	//	testCityHash1([]byte(p))
+	//}
+	//ctTime := time.Now()
+	//fmt.Printf("City: %s \n", ctTime.Sub(hwTime))
+	//
+	//for ct2Index := 0; ct2Index < LOOPCOUNT; ct2Index++ {
+	//	//s, _ = hex.DecodeString("123456123456123456123456123456123456123456123456")
+	//	p := fmt.Sprintf("%s", ct2Index)
+	//	testCityHash2([]byte(p))
+	//}
+	//ct2Time := time.Now()
+	//fmt.Printf("City2: %s \n", ct2Time.Sub(ctTime))
+	//
+	//for ct3Index := 0; ct3Index < LOOPCOUNT; ct3Index++ {
+	//	//s, _ = hex.DecodeString("123456123456123456123456123456123456123456123456")
+	//	p := fmt.Sprintf("%s", ct3Index)
+	//	hdr := (*reflect.StringHeader)(unsafe.Pointer(&p))
+	//	sh := reflect.SliceHeader{
+	//		Data: hdr.Data,
+	//		Len:  hdr.Len,
+	//		Cap:  hdr.Len,
+	//	}
+	//	testCityHash3(*(*[]byte)(unsafe.Pointer(&sh)), 0, seed1, seed2)
+	//}
+	//ct3Time := time.Now()
+	//fmt.Printf("City3: %s \n", ct3Time.Sub(ct2Time))
+	//
+	//d := xxhash.New()
+	//for xxIndex := 0; xxIndex < LOOPCOUNT; xxIndex++ {
+	//	//s, _ = hex.DecodeString("123456123456123456123456123456123456123456123456")
+	//	p := fmt.Sprintf("%s", xxIndex)
+	//	testXXHash([]byte(p), d)
+	//}
+	//xxTime := time.Now()
+	//fmt.Printf("xxHash: %s \n", xxTime.Sub(ct3Time))
+	//
+	//for farmIndex := 0; farmIndex < LOOPCOUNT; farmIndex++ {
+	//	//s, _ = hex.DecodeString("123456123456123456123456123456123456123456123456")
+	//	p := fmt.Sprintf("%s", farmIndex)
+	//	testFarmHash([]byte(p))
+	//}
+	//farmTime := time.Now()
+	//fmt.Printf("farmHash: %s \n", farmTime.Sub(xxTime))
 }
 
 func testDchestSipHash(k0, k1 uint64, p string) uint64 {

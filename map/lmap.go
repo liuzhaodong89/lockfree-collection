@@ -8,11 +8,12 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 )
 
 type lmap struct {
 	count           int32
-	capability      int32
+	bucketsCapacity int32
 	buckets         []*lbucket
 	bucketsCountBit uint64
 
@@ -21,18 +22,18 @@ type lmap struct {
 	seed1, seed2    uint64
 }
 
-const MAX_CAPACITY int32 = math.MaxInt32
-const DEFAULT_CAPACITY int32 = 256
-const LOAD_FACTOR float32 = 0.75
-const MULTIPLE_FACTOR = 4
-const DEFAULT_BUCKET_CAPACITY = 10
+const MAX_BUCKETS_CAPACITY int32 = math.MaxInt32
+const DEFAULT_BUCKETS_CAPACITY int32 = 2048
+const EXPAND_THRES_FACTOR float32 = 0.4
+const EXPAND_FACTOR = 4
+const NODES_PER_BUCKET_CAPACITY = 10
 
 func New() (m *lmap) {
 	lm := lmap{
-		resizeThreshold: int32(decimal.NewFromInt32(DEFAULT_CAPACITY).Mul(decimal.NewFromInt(DEFAULT_BUCKET_CAPACITY)).Mul(decimal.NewFromFloat32(LOAD_FACTOR)).IntPart()),
-		capability:      DEFAULT_CAPACITY,
+		resizeThreshold: int32(decimal.NewFromInt32(DEFAULT_BUCKETS_CAPACITY).Mul(decimal.NewFromInt(NODES_PER_BUCKET_CAPACITY)).Mul(decimal.NewFromFloat32(EXPAND_THRES_FACTOR)).IntPart()),
+		bucketsCapacity: DEFAULT_BUCKETS_CAPACITY,
 		count:           0,
-		buckets:         make([]*lbucket, DEFAULT_CAPACITY),
+		buckets:         make([]*lbucket, DEFAULT_BUCKETS_CAPACITY),
 	}
 
 	lm.bucketsCountBit = uint64(math.Log2(float64(len(lm.buckets))))
@@ -40,7 +41,7 @@ func New() (m *lmap) {
 	binary.Read(rand.Reader, binary.BigEndian, &lm.seed1)
 	binary.Read(rand.Reader, binary.BigEndian, &lm.seed2)
 
-	lm.buckets = lm.createBuckets(DEFAULT_CAPACITY)
+	lm.buckets = lm.createBuckets(DEFAULT_BUCKETS_CAPACITY)
 
 	return &lm
 }
@@ -115,71 +116,128 @@ func (m *lmap) resize() {
 		return
 	}
 
-	oldCap := m.capability
+	currentBucketsCapacity := int32(len(m.buckets))
+	newBucketsCapacity := currentBucketsCapacity
 
-	if oldCap > 0 {
-		if oldCap >= MAX_CAPACITY {
-			m.resizeThreshold = MAX_CAPACITY
+	if currentBucketsCapacity < MAX_BUCKETS_CAPACITY {
+		if currentBucketsCapacity*EXPAND_FACTOR >= MAX_BUCKETS_CAPACITY {
+			newBucketsCapacity = MAX_BUCKETS_CAPACITY
 		} else {
-			newCap := oldCap
-			if oldCap >= MAX_CAPACITY/MULTIPLE_FACTOR {
-				newCap = MAX_CAPACITY
-			} else {
-				newCap = oldCap * MULTIPLE_FACTOR
-			}
-
-			newThres := int32(decimal.NewFromInt32(newCap).Mul(decimal.NewFromInt(DEFAULT_BUCKET_CAPACITY)).Mul(decimal.NewFromFloat32(LOAD_FACTOR)).IntPart())
-			m.resizeThreshold = newThres
-			m.capability = newCap
-			//stageTime1 := time.Now()
-			//fmt.Printf("stage time for calculate new params:%s \n", stageTime1.Sub(startTime))
-
-			newBuckets := m.createBuckets(newCap)
-
-			var fi int32 = 0
-			//newBuckets := make([]*lbucket, 0)
-			for ; fi < MULTIPLE_FACTOR; fi++ {
-				newBuckets = append(newBuckets, m.buckets...)
-			}
-
-			//stageTime2 := time.Now()
-			//fmt.Printf("stage time for create new buckets slice:%s \n", stageTime2.Sub(stageTime1))
-			m.bucketsCountBit = uint64(math.Log2(float64(len(newBuckets))))
-			//endTime1 := time.Now()
-			//fmt.Printf("time for expand buckets: %s \n", endTime1.Sub(startTime))
-
-			//rehash
-			if newBuckets != nil {
-				for i := 0; i < len(newBuckets); i++ {
-					if i%MULTIPLE_FACTOR != 0 {
-						//newBuckets[i].count = 0
-						newBuckets[i].head = nil
-					}
-				}
-				//endTime2 := time.Now()
-				//fmt.Printf("time for copy buckets: %s \n", endTime2.Sub(endTime1))
-
-				hashesSlice := make([]uint64, MULTIPLE_FACTOR-1)
-				for j := 0; j < len(newBuckets); j = (j + 1) * MULTIPLE_FACTOR {
-					hashesSlice = hashesSlice[0:0]
-					for x := 1; x < MULTIPLE_FACTOR; x++ {
-						hashesSlice = append(hashesSlice, uint64(j+x)<<(64-m.bucketsCountBit))
-					}
-					nodes := newBuckets[j].Split(hashesSlice)
-					if nodes != nil {
-						for y := 0; y < len(nodes); y++ {
-							newBuckets[j+y].head = nodes[y]
-						}
-					}
-				}
-				//endTime3 := time.Now()
-				//fmt.Printf("time for move nodes: %s \n", endTime3.Sub(endTime2))
-			}
-			m.buckets = newBuckets
+			newBucketsCapacity = currentBucketsCapacity * EXPAND_FACTOR
 		}
 	}
-	//endTime := time.Now()
-	//fmt.Printf("time for resize:%s ============  and count is %v ,and threshold is %v \n", endTime.Sub(startTime), m.count, m.resizeThreshold)
+
+	if newBucketsCapacity == currentBucketsCapacity {
+		return
+	}
+
+	m.bucketsCapacity = newBucketsCapacity
+	m.resizeThreshold = int32(decimal.NewFromInt32(newBucketsCapacity).Mul(decimal.NewFromInt32(DEFAULT_BUCKETS_CAPACITY)).Mul(decimal.NewFromFloat32(EXPAND_THRES_FACTOR)).IntPart())
+	nBuckets := m.buckets
+
+	//expand_bit := uint64(math.Log2(float64(EXPAND_FACTOR)))
+	//for i := 0; i < int(expand_bit); i++ {
+	//	nBuckets = append(nBuckets, nBuckets...)
+	//}
+
+	for i := 1; i < EXPAND_FACTOR; i++ {
+		nBuckets = append(nBuckets, m.buckets...)
+	}
+	m.bucketsCountBit = uint64(math.Log2(float64(len(nBuckets))))
+
+	//将原先第i个bucket，移动至第EXPAND_FACTOR*i个位置
+	for i := 0; i < len(nBuckets); i++ {
+		if i%EXPAND_FACTOR == 0 {
+			nBuckets[i].head = m.buckets[i/EXPAND_FACTOR].head
+		} else {
+			nBuckets[i].head = nil
+		}
+	}
+
+	//将第EXPAND_FACTOR*i个bucket内的nodes重新切分，分配到EXPAND_FACTOR*(i-1)+1到EXPAND_FACTOR*i-1个bucket内
+	for i := 0; i < len(nBuckets); i = (i + 1) * EXPAND_FACTOR {
+		originHead := nBuckets[i].head
+		nBuckets[i].head = nil
+		for current := originHead; current != nil; {
+			bucketIndex := current.hashVal >> (64 - m.bucketsCountBit)
+
+			newNode := current
+			current = current.GetNext()
+			if nBuckets[bucketIndex].head != nil {
+				atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&newNode.nextPointer)), nil, unsafe.Pointer(nBuckets[bucketIndex].head))
+				atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&nBuckets[bucketIndex].head)), unsafe.Pointer(nBuckets[bucketIndex].head), unsafe.Pointer(&newNode))
+			} else {
+				nBuckets[bucketIndex].head = newNode
+			}
+		}
+	}
+	m.buckets = nBuckets
+
+	//oldCap := m.bucketsCapacity
+	//
+	//if oldCap > 0 {
+	//	if oldCap >= MAX_BUCKETS_CAPACITY {
+	//		m.resizeThreshold = MAX_BUCKETS_CAPACITY
+	//	} else {
+	//		newCap := oldCap
+	//		if oldCap >= MAX_BUCKETS_CAPACITY/EXPAND_FACTOR {
+	//			newCap = MAX_BUCKETS_CAPACITY
+	//		} else {
+	//			newCap = oldCap * EXPAND_FACTOR
+	//		}
+	//
+	//		newThres := int32(decimal.NewFromInt32(newCap).Mul(decimal.NewFromInt(NODES_PER_BUCKET_CAPACITY)).Mul(decimal.NewFromFloat32(EXPAND_THRES_FACTOR)).IntPart())
+	//		m.resizeThreshold = newThres
+	//		m.bucketsCapacity = newCap
+	//		//stageTime1 := time.Now()
+	//		//fmt.Printf("stage time for calculate new params:%s \n", stageTime1.Sub(startTime))
+	//
+	//		newBuckets := m.createBuckets(newCap)
+	//
+	//		var fi int32 = 0
+	//		//newBuckets := make([]*lbucket, 0)
+	//		for ; fi < EXPAND_FACTOR; fi++ {
+	//			newBuckets = append(newBuckets, m.buckets...)
+	//		}
+	//
+	//		//stageTime2 := time.Now()
+	//		//fmt.Printf("stage time for create new buckets slice:%s \n", stageTime2.Sub(stageTime1))
+	//		m.bucketsCountBit = uint64(math.Log2(float64(len(newBuckets))))
+	//		//endTime1 := time.Now()
+	//		//fmt.Printf("time for expand buckets: %s \n", endTime1.Sub(startTime))
+	//
+	//		//rehash
+	//		if newBuckets != nil {
+	//			for i := 0; i < len(newBuckets); i++ {
+	//				if i%EXPAND_FACTOR != 0 {
+	//					//newBuckets[i].count = 0
+	//					newBuckets[i].head = nil
+	//				}
+	//			}
+	//			//endTime2 := time.Now()
+	//			//fmt.Printf("time for copy buckets: %s \n", endTime2.Sub(endTime1))
+	//
+	//			hashesSlice := make([]uint64, EXPAND_FACTOR-1)
+	//			for j := 0; j < len(newBuckets); j = (j + 1) * EXPAND_FACTOR {
+	//				hashesSlice = hashesSlice[0:0]
+	//				for x := 1; x < EXPAND_FACTOR; x++ {
+	//					hashesSlice = append(hashesSlice, uint64(j+x)<<(64-m.bucketsCountBit))
+	//				}
+	//				nodes := newBuckets[j].Split(hashesSlice)
+	//				if nodes != nil {
+	//					for y := 0; y < len(nodes); y++ {
+	//						newBuckets[j+y].head = nodes[y]
+	//					}
+	//				}
+	//			}
+	//			//endTime3 := time.Now()
+	//			//fmt.Printf("time for move nodes: %s \n", endTime3.Sub(endTime2))
+	//		}
+	//		m.buckets = newBuckets
+	//	}
+	//}
+	////endTime := time.Now()
+	////fmt.Printf("time for resize:%s ============  and count is %v ,and threshold is %v \n", endTime.Sub(startTime), m.count, m.resizeThreshold)
 }
 
 func (m *lmap) createBuckets(bucketsSize int32) (buckets []*lbucket) {
