@@ -8,15 +8,15 @@ import (
 )
 
 type lbucket struct {
-	lock sync.RWMutex
-	//count int32
-	head *lnode
+	lock  sync.RWMutex
+	count int32
+	head  *lnode
 }
 
 func NewBucket() *lbucket {
 	return &lbucket{
-		//count: 0,
-		head: nil,
+		count: 0,
+		head:  nil,
 	}
 }
 
@@ -61,16 +61,24 @@ func (b *lbucket) find(key interface{}, hashkey uint64) (parent *lnode, current 
 	}
 
 	parent = nil
+	count := 0
 	if nil != b.head {
 		for current := b.head; current != nil; current = current.GetNext() {
 			if hashkey == current.GetHash() {
 				if *(*interface{})(current.keyPointer) == key {
+					//if count < 2 {
+					//	fmt.Printf("bucket too long.yes \n")
+					//}
 					return parent, current, true
 				}
 			}
 			parent = current
+			count++
 		}
 	}
+	//if count < 2 {
+	//	fmt.Printf("bucket too long.no.%s \n", count)
+	//}
 	return nil, nil, false
 }
 
@@ -90,7 +98,7 @@ func (b *lbucket) insert(key interface{}, hashkey uint64, value interface{}, cur
 
 		addResult := current.UpdateNextPointerWithCAS(unsafe.Pointer(currentNext), &newNode)
 		if addResult {
-			//atomic.AddInt32(&b.count, 1)
+			atomic.AddInt32(&b.count, 1)
 		} else {
 			newNode.UpdateNextPointerWithCAS(unsafe.Pointer(currentNext), nil)
 		}
@@ -102,7 +110,7 @@ func (b *lbucket) insert(key interface{}, hashkey uint64, value interface{}, cur
 		}
 		addResult := atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&b.head)), unsafe.Pointer(head), unsafe.Pointer(&newNode))
 		if addResult {
-			//atomic.AddInt32(&b.count, 1)
+			atomic.AddInt32(&b.count, 1)
 		} else {
 			newNode.UpdateNextPointerWithCAS(unsafe.Pointer(head), nil)
 		}
@@ -144,7 +152,7 @@ func (b *lbucket) delete(key interface{}, hashkey uint64) (success bool) {
 	if delResult {
 		current.UpdateNextPointerWithCAS(unsafe.Pointer(newNext), nil)
 		current = nil
-		//atomic.AddInt32(&b.count, -1)
+		atomic.AddInt32(&b.count, -1)
 	}
 	return delResult
 }

@@ -69,6 +69,14 @@ func main() {
 	wa2.Wait()
 	etm := time.Now()
 	fmt.Printf("$$$$$$$$$$$$Time:  %s \n", etm.Sub(stm))
+
+	testMap2 := _map.New()
+	stm1 := time.Now()
+	for j := 0; j < LOOPCOUNT; j++ {
+		testMap2.Set(fmt.Sprintf("%v", j), "TestVal")
+	}
+	etm1 := time.Now()
+	fmt.Printf("&&&&&&&&&&&&Time:  %s \n", etm1.Sub(stm1))
 	//fmt.Printf("******************** Key:999, string: ")
 	//fmt.Println(testMap.Get("999"))
 	//fmt.Printf("******************** Key:999, int: ")
