@@ -63,6 +63,7 @@ func GetHash(key interface{}, seed1 uint64, seed2 uint64) (hash uint64) {
 			Cap:  hdr.Len,
 		}
 		return siphash.Hash(seed1-1, seed2, *(*[]byte)(unsafe.Pointer(&sh)))
+		//return BKDRHash(v, seed1)
 		//return sip13.Sum64Str(seed1, seed2, key.(string))
 		//return farm.Hash64([]byte(key.(string)))
 	default:
@@ -78,6 +79,14 @@ func memhash(k0, k1 uint64, addr unsafe.Pointer, size int) uint64 {
 	}
 	return siphash.Hash(k0, k1, *(*[]byte)(unsafe.Pointer(&sh)))
 	//return cityhash2.CityHash64WithSeeds(*(*[]byte)(unsafe.Pointer(&sh)), uint32(size), k0, k1)
+}
+
+func BKDRHash(str string, seed uint64) uint64 {
+	hash := uint64(0)
+	for i := 0; i < len(str); i++ {
+		hash = (hash * seed) + uint64(str[i])
+	}
+	return hash
 }
 
 func GetCityHashUseString(k0, k1 uint64, data string, length uint32) uint64 {
