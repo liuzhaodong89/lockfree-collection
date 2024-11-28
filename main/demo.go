@@ -39,36 +39,48 @@ func main() {
 	//fmt.Printf(int)
 
 	//fmt.Println("*************************")
-	LOOPCOUNT := 100000
+	LOOPCOUNT := 1000000
 	testMap := _map.New()
 	wa2 := sync.WaitGroup{}
 	wa2.Add(LOOPCOUNT)
 	stm := time.Now()
 
 	for x := 0; x < LOOPCOUNT; x++ {
-		y := x
 		go func(tmp int) {
-			//if y == 999 {
-			//	fmt.Printf("999 is coming! \n")
-			//	fmt.Println(testMap.Set(fmt.Sprintf("%v", y), "testval"))
-			//	fmt.Println(testMap.Set(y, "testVal"))
-			//	fmt.Println(testMap.Set(float64(y), "testval"))
-			//	fmt.Println(testMap.Set(y, "testVal111"))
-
-			//}
-			testMap.Set(fmt.Sprintf("%v", tmp), "testval")
-			//testMap.Set(tmp, "testval")
-
-			//testMap.Set(tmp, "testVal")
-			//testMap.Set(float64(tmp), "testval")
-			//testMap.Set(tmp, "testVal111")
+			s := testMap.Set(fmt.Sprintf("%v", tmp), "testval")
+			if !s {
+				s2 := testMap.Set(tmp, "testval")
+				//	if !s2 {
+				//		s3 := testMap.Set(tmp, "testval")
+				//		if !s3 {
+				//			s4 := testMap.Set(tmp, "testval")
+				//			if !s4 {
+				//				s5 := testMap.Set(tmp, "testval")
+				if !s2 {
+					fmt.Printf("Failed Insert: %v \n", tmp)
+				}
+				//			}
+				//		}
+				//	}
+			}
 			wa2.Done()
-		}(y)
+		}(x)
 	}
+	v, _ := testMap.Get("1456")
+	fmt.Printf("Test:%v \n", v)
 
 	wa2.Wait()
 	etm := time.Now()
 	fmt.Printf("并行 Time:  %s \n", etm.Sub(stm))
+
+	for y := 0; y < LOOPCOUNT; y++ {
+		go func(tmp int) {
+			_, e := testMap.Get(fmt.Sprintf("%v", tmp))
+			if !e {
+				//fmt.Printf("Alert! key is %v \n", tmp)
+			}
+		}(y)
+	}
 
 	testMap2 := _map.New()
 	stm1 := time.Now()
@@ -76,7 +88,77 @@ func main() {
 		testMap2.Set(fmt.Sprintf("%v", j), "TestVal")
 	}
 	etm1 := time.Now()
+	v1, _ := testMap2.Get("11456")
+	fmt.Printf("Test2: %v \n", v1)
 	fmt.Printf("串行 Time:  %s \n", etm1.Sub(stm1))
+
+	rstm1 := time.Now()
+	for ri := 0; ri < LOOPCOUNT; ri++ {
+		_, ok := testMap.Get(fmt.Sprintf("%v", ri))
+		if !ok {
+			fmt.Printf("Failed to get key: %v \n", ri)
+		}
+	}
+	retm1 := time.Now()
+	fmt.Printf("串行读 Time:  %s \n", retm1.Sub(rstm1))
+
+	rstm2 := time.Now()
+	rwa := sync.WaitGroup{}
+	rwa.Add(LOOPCOUNT)
+	for rj := 0; rj < LOOPCOUNT; rj++ {
+		go func(tmp int) {
+			_, ok := testMap2.Get(fmt.Sprintf("%v", tmp))
+			if !ok {
+				fmt.Printf("Parallel failed to get key: %v \n", tmp)
+			}
+			rwa.Done()
+		}(rj)
+	}
+	rwa.Wait()
+	retm2 := time.Now()
+	fmt.Printf("并行读 Time: %s \n", retm2.Sub(rstm2))
+
+	testSyncMap := sync.Map{}
+	//wa3 := sync.WaitGroup{}
+	//wa3.Add(LOOPCOUNT)
+	sstm := time.Now()
+
+	for y := 0; y < LOOPCOUNT; y++ {
+		//go func() {
+		testSyncMap.Store(fmt.Sprint("%v", y), "testVal")
+		//wa3.Done()
+		//}()
+	}
+
+	//wa3.Wait()
+	estm := time.Now()
+	fmt.Printf("Sync map 写入  %s \n", estm.Sub(sstm))
+
+	rstm3 := time.Now()
+
+	for y := 0; y < LOOPCOUNT; y++ {
+		//go func() {
+		testSyncMap.Load(fmt.Sprint("%v", y))
+		//wa3.Done()
+		//}()
+	}
+
+	//wa3.Wait()
+	retm3 := time.Now()
+	fmt.Printf("Sync map 读取  %s \n", retm3.Sub(rstm3))
+
+	//for x := 0; x < LOOPCOUNT; x++ {
+	//	_, e := testMap2.Get(fmt.Sprintf("%v", x))
+	//	if !e {
+	//		fmt.Printf("Alert! key is %v \n", x)
+	//	}
+	//}
+	//for x := 0; x < LOOPCOUNT; x++ {
+	//	s := testMap2.Del(fmt.Sprintf("%v", x))
+	//	if !s {
+	//		fmt.Printf("Delete Failed! key is %v \n", x)
+	//	}
+	//}
 	//fmt.Printf("******************** Key:999, string: ")
 	//fmt.Println(testMap.Get("999"))
 	//fmt.Printf("******************** Key:999, int: ")
