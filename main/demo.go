@@ -49,7 +49,7 @@ func main() {
 		go func(tmp int) {
 			s := testMap.Set(fmt.Sprintf("%v", tmp), "testval")
 			if !s {
-				s2 := testMap.Set(tmp, "testval")
+				s2 := testMap.Set(fmt.Sprintf("%v", tmp), "testval")
 				//	if !s2 {
 				//		s3 := testMap.Set(tmp, "testval")
 				//		if !s3 {
