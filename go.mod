@@ -13,7 +13,4 @@ require (
 	github.com/zentures/cityhash v0.0.0-20131128155616-cdd6a94144ab
 )
 
-require (
-	github.com/segmentio/fasthash v1.0.3 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-)
+require golang.org/x/sys v0.25.0 // indirect
