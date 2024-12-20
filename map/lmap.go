@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 )
 
-type lmap struct {
+type Lmap struct {
 	count           int32
 	buckets         []*lbucket
 	bucketsCountBit uint64
@@ -29,8 +29,8 @@ const NODES_PER_BUCKET_CAPACITY = 10
 const REDUCE_THRES_FACTOR float32 = 0.25
 const REDUCE_FACTOR = 4
 
-func New() (m *lmap) {
-	lm := lmap{
+func New() (m *Lmap) {
+	lm := Lmap{
 		expandThreshold: int32(decimal.NewFromInt32(DEFAULT_BUCKETS_CAPACITY).Mul(decimal.NewFromInt(NODES_PER_BUCKET_CAPACITY)).Mul(decimal.NewFromFloat32(EXPAND_THRES_FACTOR)).IntPart()),
 		//bucketsCapacity: DEFAULT_BUCKETS_CAPACITY,
 		reduceThreshold: 0,
@@ -48,7 +48,7 @@ func New() (m *lmap) {
 	return &lm
 }
 
-func (m *lmap) Get(key interface{}) (val any, exist bool) {
+func (m *Lmap) Get(key interface{}) (val any, exist bool) {
 	if key == nil {
 		return nil, false
 	}
@@ -62,7 +62,7 @@ func (m *lmap) Get(key interface{}) (val any, exist bool) {
 	return bucket.Get(key, hashkey)
 }
 
-func (m *lmap) Set(key interface{}, val any) bool {
+func (m *Lmap) Set(key interface{}, val any) bool {
 	if m.count > m.expandThreshold {
 		m.expand()
 	}
@@ -73,7 +73,7 @@ func (m *lmap) Set(key interface{}, val any) bool {
 	return m.set2bucket(key, val, m.buckets)
 }
 
-func (m *lmap) set2bucket(key interface{}, val any, buckets []*lbucket) bool {
+func (m *Lmap) set2bucket(key interface{}, val any, buckets []*lbucket) bool {
 	if key == nil {
 		return false
 	}
@@ -100,7 +100,7 @@ func (m *lmap) set2bucket(key interface{}, val any, buckets []*lbucket) bool {
 	return succ
 }
 
-func (m *lmap) Del(key interface{}) (success bool) {
+func (m *Lmap) Del(key interface{}) (success bool) {
 	if key == nil {
 		return false
 	}
@@ -121,11 +121,11 @@ func (m *lmap) Del(key interface{}) (success bool) {
 	return suc
 }
 
-func (m *lmap) Size() (size int32) {
+func (m *Lmap) Size() (size int32) {
 	return m.count
 }
 
-func (m *lmap) expand() {
+func (m *Lmap) expand() {
 	//startTime := time.Now()
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -133,7 +133,7 @@ func (m *lmap) expand() {
 	if m.count <= m.expandThreshold {
 		return
 	}
-	//fmt.Printf("before expand resizethreshold is %s, and count is %s, and buckets count is %s, and bucket capacity is %s \n", m.expandThreshold, m.count, len(m.buckets), m.bucketsCapacity)
+	//fmt.Printf("before expand resizethreshold is %s, and count is %s, and buckets count is %s \n", m.expandThreshold, m.count, len(m.buckets))
 
 	currentBucketsCapacity := int32(len(m.buckets))
 	newBucketsCapacity := currentBucketsCapacity
@@ -189,7 +189,7 @@ func (m *lmap) expand() {
 	//fmt.Printf("time for expand:%s ============ \n", endTime.Sub(startTime))
 }
 
-func (m *lmap) reduce() {
+func (m *Lmap) reduce() {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -243,7 +243,7 @@ func (m *lmap) reduce() {
 	m.buckets = m.buckets[:newBucketsCapacity]
 }
 
-func (m *lmap) createBuckets(bucketsSize int32) (buckets []*lbucket) {
+func (m *Lmap) createBuckets(bucketsSize int32) (buckets []*lbucket) {
 	if bucketsSize > 0 {
 		var i int32 = 0
 		//startTime := time.Now()
@@ -261,12 +261,12 @@ func (m *lmap) createBuckets(bucketsSize int32) (buckets []*lbucket) {
 	}
 }
 
-func (m *lmap) getLBucket(hashKey uint64, buckets []*lbucket) (b *lbucket) {
+func (m *Lmap) getLBucket(hashKey uint64, buckets []*lbucket) (b *lbucket) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.getLBucketWithoutLock(hashKey, buckets)
 }
 
-func (m *lmap) getLBucketWithoutLock(hashKey uint64, buckets []*lbucket) (b *lbucket) {
+func (m *Lmap) getLBucketWithoutLock(hashKey uint64, buckets []*lbucket) (b *lbucket) {
 	return buckets[hashKey>>(64-m.bucketsCountBit)]
 }

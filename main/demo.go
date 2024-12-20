@@ -19,6 +19,11 @@ import (
 	"unsafe"
 )
 
+type TestInfo struct {
+	name  *string
+	index int64
+}
+
 func main() {
 	//lm := _map.New()
 	//lm.Set("1", "1")
@@ -39,7 +44,7 @@ func main() {
 	//fmt.Printf(int)
 
 	//fmt.Println("*************************")
-	LOOPCOUNT := 1000000
+	LOOPCOUNT := 5000000
 	testMap := _map.New()
 	wa2 := sync.WaitGroup{}
 	wa2.Add(LOOPCOUNT)
@@ -73,19 +78,25 @@ func main() {
 	etm := time.Now()
 	fmt.Printf("并行 Time:  %s \n", etm.Sub(stm))
 
-	for y := 0; y < LOOPCOUNT; y++ {
-		go func(tmp int) {
-			_, e := testMap.Get(fmt.Sprintf("%v", tmp))
-			if !e {
-				//fmt.Printf("Alert! key is %v \n", tmp)
-			}
-		}(y)
-	}
+	//for y := 0; y < LOOPCOUNT; y++ {
+	//	go func(tmp int) {
+	//		_, e := testMap.Get(fmt.Sprintf("%v", tmp))
+	//		if !e {
+	//			//fmt.Printf("Alert! key is %v \n", tmp)
+	//		}
+	//	}(y)
+	//}
 
 	testMap2 := _map.New()
 	stm1 := time.Now()
 	for j := 0; j < LOOPCOUNT; j++ {
-		testMap2.Set(fmt.Sprintf("%v", j), "TestVal")
+		keyStr := fmt.Sprintf("%v", j)
+		//test := new(TestInfo)
+		//test.name = &keyStr
+		//test.index = int64(j)
+		testMap2.Set(keyStr, "TestVal")
+		//fmt.Printf("Test: %v \n", uintptr(unsafe.Pointer(test)))
+		//testXunhuan(j, testMap2)
 	}
 	etm1 := time.Now()
 	v1, _ := testMap2.Get("11456")
@@ -94,7 +105,7 @@ func main() {
 
 	rstm1 := time.Now()
 	for ri := 0; ri < LOOPCOUNT; ri++ {
-		_, ok := testMap.Get(fmt.Sprintf("%v", ri))
+		_, ok := testMap2.Get(fmt.Sprintf("%v", ri))
 		if !ok {
 			fmt.Printf("Failed to get key: %v \n", ri)
 		}
@@ -107,7 +118,7 @@ func main() {
 	rwa.Add(LOOPCOUNT)
 	for rj := 0; rj < LOOPCOUNT; rj++ {
 		go func(tmp int) {
-			_, ok := testMap2.Get(fmt.Sprintf("%v", tmp))
+			_, ok := testMap.Get(fmt.Sprintf("%v", tmp))
 			if !ok {
 				fmt.Printf("Parallel failed to get key: %v \n", tmp)
 			}
@@ -282,4 +293,10 @@ func testXXHash(s []byte, d hash.Hash64) uint64 {
 
 func testFarmHash(s []byte) uint64 {
 	return farm.Hash64(s)
+}
+
+func testXunhuan(test int, testMap *_map.Lmap) {
+	keyStr := fmt.Sprintf("%v", test)
+	//fmt.Printf("Test: %s \n", &keyStr)
+	testMap.Set(&keyStr, "TestVal")
 }

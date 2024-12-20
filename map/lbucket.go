@@ -159,30 +159,3 @@ func (b *lbucket) delete(key interface{}, hashkey uint64) (success bool) {
 func (b *lbucket) Size() (count uint32) {
 	return count
 }
-
-//func (b *lbucket) Split(hashes []uint64) (headNodes []*lnode) {
-//	if b.head == nil {
-//		return nil
-//	}
-//	if hashes != nil {
-//		sort.Slice(hashes, func(i, j int) bool {
-//			return i < j
-//		})
-//
-//		hashIndex := 0
-//		node := b.head
-//		var parent *lnode = nil
-//		for ; node.nextPointer != nil; node = node.GetNext() {
-//			if node.hashVal >= hashes[hashIndex] && (parent == nil || parent != nil && parent.hashVal < hashes[hashIndex]) {
-//				headNodes = append(headNodes, node)
-//				hashIndex++
-//
-//				if hashIndex >= len(hashes) {
-//					break
-//				}
-//			}
-//			parent = node
-//		}
-//	}
-//	return headNodes
-//}
